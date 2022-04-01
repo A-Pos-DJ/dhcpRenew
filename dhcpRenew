@@ -1,0 +1,71 @@
+#!/bin/bash
+
+#Variables with Default Values
+waitFor=3
+allInterfaces=0
+
+#Regex expression reference
+re='^[0-9]*$'
+
+#Check passed in values to see what they are
+#If there are no passed in values..
+if [ -z "$1" ]
+then
+	allInterfaces=1
+	
+#checks to see if first passed in value is NOT an int and the second value is empty
+elif ! [[ $1 =~ $re ]] && [ -z "$2" ]
+then
+	allInterfaces=0
+	
+#checks to see if first passed in value is an int and the second value is empty
+elif [[ $1 =~ $re ]] && [ -z "$2" ]
+then
+	allInterfaces=1
+	waitFor=$1
+	
+#Checks to see if value one is not an int and value 2 is an int
+elif ! [[ $1 =~ $re ]] && [[ $2 =~ $re ]]
+then
+	allInterfaces=0
+	waitFor=$2
+	
+#Exits program if two non-integers are passed in
+elif ! [[ $1 =~ $re ]] && ! [[ $2 =~ $re ]]
+then
+	echo "ERROR: Can only operate on a single interface or all interfaces (if no interfaces are referenced)"
+	exit
+fi
+
+#Assign all interfaces (minus any loopbacks) to an array
+interfaces=($(ifconfig | grep '[[:alnum:]][:]\{1\}[ ]\{1\}' | grep -v 'LOOPBACK' | awk '{print $1;}'))
+
+found=0
+
+
+#Loop though every element in the array
+for idx in "${interfaces[@]}"
+do
+	#If all interfaces, then preform action on each interface
+	if [ $allInterfaces -eq 1 ]
+	then
+		echo "Interface ${idx::-1}:"
+		sudo dhclient -r ${idx::-1}
+		sleep "${waitFor}"
+		sudo dhclient -v ${idx::-1}
+	#If NOT all interfaces and the interface matches, preform operations on the interface
+	elif [ $allInterfaces -eq 0 ] && [ ${idx::-1} == "$1" ]
+	then
+		found=1
+		echo "Interface $1:"
+		sudo dhclient -r "$1" 
+		sleep "${waitFor}"
+		sudo dhclient -v "$1" 
+	fi
+done
+
+#If we were unable to find the interface and intended on using a single one
+if [ $allInterfaces -eq 0 ] && [ $found -eq 0 ]
+then
+	echo "Interface $1 was not found."
+fi
